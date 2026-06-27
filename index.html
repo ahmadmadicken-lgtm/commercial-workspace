@@ -3769,7 +3769,7 @@ function openProposalDetail(id) {
   openModal('modal-proposal-detail');
 }
 
-async async function deleteProposal(id) {
+async function deleteProposal(id) {
   if (!confirm('Hapus proposal ini?')) return;
   db.proposals = db.proposals.filter(p => p.id !== id);
   await sb.delete('proposals', id);
