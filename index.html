@@ -1173,8 +1173,69 @@ datalist { background: var(--bg-card); }
   .stat-value { font-size: 20px; }
   .grid-4 { grid-template-columns: 1fr 1fr; }
 }
+/* ============================================================
+   AI ASSISTANT STYLES
+   ============================================================ */
+.ai-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid #7C3AED;
+  background: #7C3AED15;
+  color: #A78BFA;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.ai-btn:hover { background: #7C3AED30; border-color: #A78BFA; }
+.ai-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.ai-btn .ai-spinner {
+  width: 12px; height: 12px;
+  border: 2px solid #A78BFA40;
+  border-top-color: #A78BFA;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.ai-result {
+  margin-top: 12px;
+  padding: 14px;
+  background: #7C3AED10;
+  border: 1px solid #7C3AED30;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  color: var(--text-primary);
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+.ai-result-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #A78BFA;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.ai-no-key {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--bg-hover);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 12px;
+}
 </style>
-</head>
 <body>
 
 <div id="app">
@@ -1437,7 +1498,6 @@ async function loadAllData() {
       sb.get('projects')
     ]);
 
-    // Map snake_case DB columns → camelCase app fields
     db.businesses = businesses.map(mapBiz);
     db.leads = leads.map(mapLead);
     db.activities = activities.map(mapActivity);
@@ -1445,7 +1505,6 @@ async function loadAllData() {
     db.proposals = proposals.map(mapProposal);
     db.projects = projects.map(mapProject);
 
-    // Settings
     if (settingsRows.length > 0) {
       const s = settingsRows[0];
       db.settings = {
@@ -1455,31 +1514,41 @@ async function loadAllData() {
         pipelineStages: s.pipeline_stages || db.settings.pipelineStages,
         vendorCategories: s.vendor_categories || db.settings.vendorCategories,
         technicianList: s.technician_list || [],
+        aiApiKey: s.ai_api_key || '',
+        aiProvider: s.ai_provider || 'deepseek',
       };
       db.activeBizId = s.active_biz_id || (db.businesses[0]?.id || null);
+      // Seed businesses if settings exist but businesses were lost
+      if (db.businesses.length === 0) {
+        await seedDefaultBusinesses();
+      }
     } else {
-      // First time — seed default businesses & settings
+      // First time — seed everything
       await seedDefaults();
     }
 
-    // Fallback activeBizId
     if (!db.activeBizId && db.businesses.length > 0) db.activeBizId = db.businesses[0].id;
 
   } catch (e) {
     console.error('Load error:', e);
-    toast('Gagal koneksi ke Supabase. Cek koneksi internet.', 'error');
+    toast('Gagal koneksi ke Supabase: ' + (e.message || JSON.stringify(e)), 'error');
   }
   hideLoadingScreen();
 }
 
-// Seed 3 default businesses + settings on first run
-async function seedDefaults() {
+async function seedDefaultBusinesses() {
   const defaults = [
     { id: 'ary', name: 'ARY Genset Specialist', description: 'Penjualan & service genset', color: '#00C896' },
     { id: 'alt', name: 'ALT Tax Consulting', description: 'Konsultasi pajak & keuangan', color: '#4A9EFF' },
     { id: 'jelajah', name: 'Jelajah Outdoor', description: 'Perlengkapan & jasa outdoor', color: '#F5A623' }
   ];
   await Promise.all(defaults.map(b => sb.upsert('businesses', b)));
+  db.businesses = defaults.map(mapBiz);
+  db.activeBizId = 'ary';
+}
+
+async function seedDefaults() {
+  await seedDefaultBusinesses();
   await sb.upsert('settings', {
     id: 'default',
     dark_mode: true,
@@ -1488,10 +1557,12 @@ async function seedDefaults() {
     pipeline_stages: db.settings.pipelineStages,
     vendor_categories: db.settings.vendorCategories,
     technician_list: [],
+    ai_api_key: '',
+    ai_provider: 'deepseek',
     active_biz_id: 'ary'
   });
-  db.businesses = defaults.map(mapBiz);
-  db.activeBizId = 'ary';
+  db.settings.aiApiKey = '';
+  db.settings.aiProvider = 'deepseek';
 }
 
 // ============================================================
@@ -1553,6 +1624,8 @@ async function saveSettings() {
     pipeline_stages: db.settings.pipelineStages,
     vendor_categories: db.settings.vendorCategories,
     technician_list: db.settings.technicianList,
+    ai_api_key: db.settings.aiApiKey || '',
+    ai_provider: db.settings.aiProvider || 'deepseek',
     active_biz_id: db.activeBizId
   });
 }
@@ -2184,6 +2257,43 @@ function renderSettings() {
           </div>
           <button class="settings-action" style="color:var(--danger);border-color:var(--danger)" onclick="resetData()">Reset</button>
         </div>
+      <!-- AI Assistant -->
+      <div class="settings-section">
+        <div class="settings-title">AI Assistant</div>
+        <div class="settings-item">
+          <div>
+            <div class="settings-item-label">Provider AI</div>
+            <div class="settings-item-desc">Pilih layanan AI yang digunakan</div>
+          </div>
+          <select class="crm-filter" id="ai-provider" onchange="saveAISettings()" style="font-size:12px">
+            <option value="deepseek" ${db.settings.aiProvider==='deepseek'?'selected':''}>DeepSeek (Murah)</option>
+            <option value="claude" ${db.settings.aiProvider==='claude'?'selected':''}>Claude (Anthropic)</option>
+          </select>
+        </div>
+        <div class="settings-item" style="flex-direction:column; align-items:stretch; gap:8px">
+          <div>
+            <div class="settings-item-label">API Key</div>
+            <div class="settings-item-desc">
+              ${db.settings.aiProvider === 'claude'
+                ? 'Dapatkan di <a href="https://console.anthropic.com" target="_blank" style="color:var(--accent)">console.anthropic.com</a>'
+                : 'Dapatkan di <a href="https://platform.deepseek.com" target="_blank" style="color:var(--accent)">platform.deepseek.com</a>'
+              }
+            </div>
+          </div>
+          <div style="display:flex; gap:8px">
+            <input class="form-input" id="ai-key-input" type="password"
+              placeholder="Masukkan API key..."
+              value="${db.settings.aiApiKey || ''}"
+              style="flex:1; font-family:var(--font-mono); font-size:12px">
+            <button class="topbar-btn btn-primary" onclick="saveAISettings()">Simpan</button>
+          </div>
+          ${hasAIKey()
+            ? `<div style="font-size:11px; color:var(--accent)">✓ API Key aktif — fitur AI tersedia</div>`
+            : `<div style="font-size:11px; color:var(--text-muted)">Belum ada API key — fitur AI belum aktif</div>`
+          }
+        </div>
+      </div>
+
       <!-- Appearance -->
       <div class="settings-section">
         <div class="settings-title">Tampilan</div>
@@ -2765,6 +2875,19 @@ function renderLeadDetail(id) {
                 <div style="font-size:13px; color:var(--text-secondary); margin-top:6px; line-height:1.6">${lead.notes}</div>
               </div>
             ` : ''}
+
+            <!-- AI Section -->
+            <div style="margin-top:14px; padding-top:14px; border-top:1px solid var(--border)">
+              <div style="font-size:11px; font-weight:700; color:#A78BFA; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:10px">✨ AI Assistant</div>
+              ${hasAIKey() ? `
+                <div style="display:flex; gap:8px; flex-wrap:wrap">
+                  <button class="ai-btn" onclick="aiAnalyzeLead('${lead.id}', this)">✨ Analisis Lead</button>
+                  <button class="ai-btn" onclick="aiDraftMessage('${lead.id}', this)">💬 Draft WA</button>
+                </div>
+                <div id="ai-lead-result" class="ai-result" style="display:none"></div>
+                <div id="ai-msg-result" class="ai-result" style="display:none"></div>
+              ` : aiKeyPrompt()}
+            </div>
           </div>
         ` : `
           <!-- Timeline Tab -->
@@ -4365,6 +4488,21 @@ function renderReview() {
   const stageColors = { Lead:'#4A6070', Qualified:'#4A9EFF', Meeting:'#9B59B6', Quotation:'#F5A623', Negotiation:'#E8445A', Won:'#00C896', Lost:'#666' };
 
   document.getElementById('page-content').innerHTML = `
+    <!-- AI Manager Insights -->
+    <div class="card" style="margin-bottom:16px; border-color:#7C3AED30">
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px">
+        <div>
+          <div style="font-size:13px; font-weight:700; color:#A78BFA">✨ AI Manager Insights</div>
+          <div style="font-size:11px; color:var(--text-muted); margin-top:2px">Analisis otomatis kondisi bisnis & rekomendasi prioritas</div>
+        </div>
+        ${hasAIKey()
+          ? `<button class="ai-btn" onclick="aiManagerInsights(this)">✨ Generate Insights</button>`
+          : `<span onclick="navigate('settings')" style="font-size:11px;color:var(--accent);cursor:pointer">Set API Key di Settings →</span>`
+        }
+      </div>
+      <div id="ai-review-result" class="ai-result" style="display:none"></div>
+    </div>
+
     <!-- KPI Grid -->
     <div class="review-kpi-grid">
       <div class="kpi-card">
@@ -4503,6 +4641,207 @@ function renderReview() {
 }
 
 // ============================================================
+// AI ASSISTANT ENGINE
+// ============================================================
+function hasAIKey() {
+  return !!(db.settings.aiApiKey && db.settings.aiApiKey.trim().length > 10);
+}
+
+function aiKeyPrompt() {
+  return `<div class="ai-no-key">
+    ✨ Fitur AI tersedia setelah Anda memasukkan API key di
+    <span onclick="navigate('settings')" style="color:var(--accent);cursor:pointer;font-weight:600">Settings → AI Assistant</span>
+  </div>`;
+}
+
+async function callAI(systemPrompt, userPrompt, btnEl) {
+  if (!hasAIKey()) { toast('Masukkan API key di Settings terlebih dahulu', 'warning'); return null; }
+
+  if (btnEl) {
+    btnEl.disabled = true;
+    btnEl.innerHTML = '<div class="ai-spinner"></div> Memproses...';
+  }
+
+  try {
+    const provider = db.settings.aiProvider || 'deepseek';
+    let url, headers, body;
+
+    if (provider === 'deepseek') {
+      url = 'https://api.deepseek.com/v1/chat/completions';
+      headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${db.settings.aiApiKey}`
+      };
+      body = JSON.stringify({
+        model: 'deepseek-chat',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        max_tokens: 800,
+        temperature: 0.7
+      });
+    } else {
+      // Claude / Anthropic
+      url = 'https://api.anthropic.com/v1/messages';
+      headers = {
+        'Content-Type': 'application/json',
+        'x-api-key': db.settings.aiApiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      };
+      body = JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 800,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userPrompt }]
+      });
+    }
+
+    const res = await fetch(url, { method: 'POST', headers, body });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error?.message || err.message || 'API error');
+    }
+    const data = await res.json();
+    return provider === 'deepseek'
+      ? data.choices?.[0]?.message?.content
+      : data.content?.[0]?.text;
+
+  } catch (e) {
+    console.error('AI error:', e);
+    toast('AI error: ' + e.message, 'error');
+    return null;
+  } finally {
+    if (btnEl) {
+      btnEl.disabled = false;
+      btnEl.innerHTML = '✨ Analisis AI';
+    }
+  }
+}
+
+// AI: Analisis Lead
+async function aiAnalyzeLead(leadId, btnEl) {
+  const lead = db.leads.find(l => l.id === leadId);
+  if (!lead) return;
+  const activities = db.activities.filter(a => a.leadId === leadId);
+
+  const system = `Kamu adalah asisten komersial profesional. Analisis data lead dan berikan rekomendasi singkat dalam Bahasa Indonesia. Format jawaban:
+🎯 PELUANG: [1-2 kalimat penilaian peluang]
+⚡ NEXT ACTION: [1 rekomendasi spesifik]
+⚠️ RISIKO: [1 risiko utama jika ada]
+💡 TIP: [1 tips closing]`;
+
+  const user = `Data Lead:
+- Perusahaan: ${lead.company}
+- Industri: ${lead.industry}
+- Stage: ${lead.stage}
+- Probabilitas: ${lead.probability}%
+- Score: ${lead.score}/5
+- Pain Point: ${lead.painPoint || 'tidak diisi'}
+- Budget: ${lead.budget ? 'Rp '+lead.budget.toLocaleString('id-ID') : 'tidak diisi'}
+- Target Closing: ${lead.expectedClosing || 'tidak diisi'}
+- Next Action: ${lead.nextAction || 'tidak ada'}
+- Jumlah Aktivitas: ${activities.length}
+- Aktivitas Terakhir: ${activities[0] ? activities[0].type + ' - ' + activities[0].note : 'belum ada'}
+- Catatan: ${lead.notes || 'tidak ada'}`;
+
+  const result = await callAI(system, user, btnEl);
+  if (!result) return;
+
+  const container = document.getElementById('ai-lead-result');
+  if (container) {
+    container.innerHTML = `
+      <div class="ai-result-header">✨ Analisis AI</div>
+      <div>${result.replace(/\n/g, '<br>')}</div>
+    `;
+    container.style.display = 'block';
+  }
+}
+
+// AI: Draft Pesan Follow Up
+async function aiDraftMessage(leadId, btnEl) {
+  const lead = db.leads.find(l => l.id === leadId);
+  if (!lead) return;
+
+  const system = `Kamu adalah copywriter komersial profesional. Buat pesan WhatsApp follow up yang singkat, hangat, dan profesional dalam Bahasa Indonesia. Maksimal 5 kalimat. Jangan gunakan template yang terkesan copy-paste.`;
+
+  const user = `Buat pesan follow up WhatsApp untuk:
+- Nama kontak: ${lead.contactPerson || lead.company}
+- Perusahaan: ${lead.company}
+- Stage: ${lead.stage}
+- Kebutuhan/Pain point: ${lead.painPoint || 'membutuhkan solusi bisnis'}
+- Next action sebelumnya: ${lead.nextAction || 'follow up'}`;
+
+  const result = await callAI(system, user, btnEl);
+  if (!result) return;
+
+  const container = document.getElementById('ai-msg-result');
+  if (container) {
+    container.innerHTML = `
+      <div class="ai-result-header">✨ Draft Pesan WA</div>
+      <div>${result.replace(/\n/g, '<br>')}</div>
+      <button onclick="copyAIText(this)" data-text="${result.replace(/"/g,'&quot;')}"
+        style="margin-top:10px; padding:6px 12px; background:var(--accent); color:#0F1923; border:none; border-radius:4px; font-size:11px; font-weight:700; cursor:pointer">
+        📋 Copy Pesan
+      </button>
+    `;
+    container.style.display = 'block';
+  }
+}
+
+function copyAIText(btn) {
+  const text = btn.getAttribute('data-text');
+  navigator.clipboard.writeText(text).then(() => toast('Pesan berhasil di-copy!'));
+}
+
+// AI: Manager Insights untuk Commercial Review
+async function aiManagerInsights(btnEl) {
+  const bizId = db.activeBizId;
+  const biz = getActiveBiz();
+  const leads = db.leads.filter(l => l.bizId === bizId);
+  const proposals = db.proposals.filter(p => p.bizId === bizId);
+  const projects = db.projects.filter(p => p.bizId === bizId);
+  const today = todayStr();
+  const overdueCount = leads.filter(l => l.nextFollowup < today && !['Won','Lost'].includes(l.stage)).length;
+  const wonRevenue = proposals.filter(p=>p.status==='won').reduce((s,p)=>s+(p.revenue||0),0);
+  const winRate = proposals.filter(p=>['won','lost'].includes(p.status)).length > 0
+    ? Math.round(proposals.filter(p=>p.status==='won').length / proposals.filter(p=>['won','lost'].includes(p.status)).length * 100) : 0;
+
+  const system = `Kamu adalah konsultan komersial berpengalaman. Berikan analisis manajerial singkat dan rekomendasi prioritas dalam Bahasa Indonesia berdasarkan data bisnis. Format:
+🔍 SITUASI: [1-2 kalimat ringkasan kondisi bisnis]
+🚨 BOTTLENECK: [masalah utama yang perlu diselesaikan]
+✅ PRIORITAS MINGGU INI: [3 aksi spesifik bernomor]
+📈 PELUANG: [1 peluang yang teridentifikasi]`;
+
+  const user = `Data bisnis ${biz?.name}:
+- Total leads aktif: ${leads.filter(l=>!['Won','Lost'].includes(l.stage)).length}
+- Follow up terlambat: ${overdueCount}
+- Win rate: ${winRate}%
+- Revenue won: Rp ${wonRevenue.toLocaleString('id-ID')}
+- Proposal pending: ${proposals.filter(p=>['pending','sent'].includes(p.status)).length}
+- Project berjalan: ${projects.filter(p=>p.status==='in_progress').length}
+- Stage terbanyak leads: ${(() => {
+    const stages = {};
+    leads.filter(l=>!['Won','Lost'].includes(l.stage)).forEach(l => stages[l.stage]=(stages[l.stage]||0)+1);
+    return Object.entries(stages).sort((a,b)=>b[1]-a[1])[0]?.[0] || 'Lead';
+  })()}
+- Lost reasons: ${[...new Set(proposals.filter(p=>p.reasonLost).map(p=>p.reasonLost))].slice(0,3).join(', ') || 'belum ada data'}`;
+
+  const result = await callAI(system, user, btnEl);
+  if (!result) return;
+
+  const container = document.getElementById('ai-review-result');
+  if (container) {
+    container.innerHTML = `
+      <div class="ai-result-header">✨ Manager Insights AI</div>
+      <div>${result.replace(/\n/g, '<br>')}</div>
+    `;
+    container.style.display = 'block';
+  }
+}
+
+// ============================================================
 // COMING SOON PAGE
 // ============================================================
 function renderComingSoon(title, icon, desc, stage) {
@@ -4553,6 +4892,16 @@ async function toggleDarkMode(on) {
   await saveSettings();
   applyTheme(on);
   toast(on ? '🌙 Mode gelap aktif' : '☀️ Mode terang aktif');
+}
+
+async function saveAISettings() {
+  const key = document.getElementById('ai-key-input')?.value.trim() || '';
+  const provider = document.getElementById('ai-provider')?.value || 'deepseek';
+  db.settings.aiApiKey = key;
+  db.settings.aiProvider = provider;
+  await saveSettings();
+  toast(key ? '✓ API Key tersimpan — fitur AI aktif' : 'API Key dikosongkan');
+  renderSettings();
 }
 
 // ============================================================
