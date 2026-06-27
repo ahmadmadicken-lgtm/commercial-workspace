@@ -1403,10 +1403,11 @@ const SUPABASE_URL = 'https://jaluvbpxdswybzvafqgz.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImphbHV2YnB4ZHN3eWJ6dmFmcWd6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI1NzM5NDYsImV4cCI6MjA5ODE0OTk0Nn0.iczhV852_9ImkxBsVK-1gprWuPtuJv4Lu44iAVgCpw8';
 
 const sb = {
-  async get(table, filters = {}) {
+  async get(table, filters = {}, orderBy = 'created_at') {
     let url = `${SUPABASE_URL}/rest/v1/${table}?select=*`;
     for (const [k, v] of Object.entries(filters)) url += `&${k}=eq.${encodeURIComponent(v)}`;
-    url += '&order=created_at.asc';
+    // Only add order if not settings (which has no created_at)
+    if (table !== 'settings') url += `&order=${orderBy}.asc`;
     const r = await fetch(url, { headers: sbHeaders() });
     if (!r.ok) throw await r.json();
     return r.json();
