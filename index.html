@@ -1115,8 +1115,141 @@ ul { list-style: none; }
   .funnel-stage-name { width: 80px; font-size: 11px; }
 }
 /* ============================================================
-   FINAL POLISH — STAGE 5
+   MOBILE FIXES — comprehensive
    ============================================================ */
+@media (max-width: 768px) {
+
+  /* Fix 3: Dashboard — no horizontal scroll, full width cards */
+  #page-content { overflow-x: hidden; }
+  .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr !important; }
+  .quick-actions { flex-wrap: wrap; }
+  .quick-actions .quick-btn { flex: 1 1 calc(50% - 4px); justify-content: center; }
+
+  /* Dashboard two-col grid force single col */
+  #page-content > div[style*="grid-template-columns:1fr 1fr"],
+  #page-content > div[style*="grid-template-columns: 1fr 1fr"] {
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  /* Fix 4: Pipeline — vertical layout instead of horizontal scroll */
+  .kanban-board {
+    flex-direction: column !important;
+    height: auto !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    gap: 10px;
+  }
+  .kanban-col {
+    min-width: 100% !important;
+    max-width: 100% !important;
+    max-height: none !important;
+  }
+  .kanban-col-body {
+    max-height: 300px;
+    overflow-y: auto;
+  }
+
+  /* Fix 5 & 6: Lead detail — no horizontal overflow */
+  #page-content { padding: 10px !important; }
+
+  /* Lead detail header — fix PT name overflow */
+  .lead-detail-name {
+    font-size: 15px !important;
+    word-break: break-word;
+    line-height: 1.3;
+  }
+  .lead-detail-header {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .lead-stage-row {
+    flex-wrap: wrap;
+  }
+  .stage-pill {
+    font-size: 10px !important;
+    padding: 3px 8px !important;
+  }
+
+  /* Lead detail layout — force single column */
+  .detail-layout-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+  }
+  .detail-layout-grid > div {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+  .info-grid {
+    grid-template-columns: 1fr !important;
+    gap: 10px;
+  }
+
+  /* Topbar title — truncate long names */
+  .topbar-title {
+    font-size: 13px !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 120px;
+  }
+
+  /* Topbar actions — smaller buttons */
+  .topbar-btn {
+    font-size: 11px !important;
+    padding: 5px 8px !important;
+  }
+
+  /* Detail tabs */
+  .detail-tab { padding: 8px 10px; font-size: 11px; }
+
+  /* Card — no overflow */
+  .card { overflow: hidden; }
+
+  /* Vendor detail layout */
+  .detail-layout-grid > div {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  /* Review KPI grid — 2 cols on mobile */
+  .review-kpi-grid { grid-template-columns: 1fr 1fr !important; }
+
+  /* CRM table — hide extra cols */
+  .crm-table-wrap { overflow-x: hidden !important; }
+  .crm-table th:nth-child(n+4),
+  .crm-table td:nth-child(n+4) { display: none !important; }
+  .crm-table { width: 100%; }
+
+  /* Proposal row — simplify on mobile */
+  .proposal-row {
+    grid-template-columns: 1fr auto !important;
+    gap: 8px;
+  }
+  .proposal-row > *:nth-child(1) { display: none; }
+
+  /* Project grid — single column */
+  .project-grid { grid-template-columns: 1fr !important; }
+
+  /* Vendor grid — single column */
+  .vendor-grid { grid-template-columns: 1fr !important; }
+
+  /* Modal — full height on mobile */
+  .modal { max-height: 92vh; border-radius: 16px 16px 0 0; }
+
+  /* Form row — single column */
+  .form-row { grid-template-columns: 1fr !important; }
+
+  /* Next action banner — word wrap */
+  .card div[style*="accent-dim"] { word-break: break-word; }
+
+  /* Funnel bar */
+  .funnel-stage-name { width: 70px !important; font-size: 10px !important; }
+
+  /* Bottom padding for content */
+  #page-content { padding-bottom: 30px !important; }
+}
 
 /* Smooth page transitions */
 #page-content { transition: opacity 0.1s ease; }
@@ -2064,6 +2197,10 @@ function renderDashboard() {
             <label class="form-label">Follow Up Berikutnya</label>
             <input type="date" class="form-input" id="ql-followup" value="${todayStr()}">
           </div>
+          <div class="form-group">
+            <label class="form-label">Tanggal Lead Masuk</label>
+            <input type="date" class="form-input" id="ql-date" value="${todayStr()}">
+          </div>
           <div class="form-actions">
             <button class="topbar-btn btn-ghost" onclick="closeModal('modal-quick-lead')">Batal</button>
             <button class="topbar-btn btn-primary" onclick="saveQuickLead()">Simpan Lead</button>
@@ -2095,7 +2232,9 @@ async function saveQuickLead() {
     stage: 'Lead',
     probability: 10,
     score: 1,
-    createdAt: new Date().toISOString()
+    createdAt: document.getElementById('ql-date')?.value
+      ? new Date(document.getElementById('ql-date').value).toISOString()
+      : new Date().toISOString()
   };
 
   db.leads.push(lead);
@@ -2280,7 +2419,7 @@ function renderSettings() {
             </div>
           </div>
           <div style="display:flex; gap:8px">
-            <input class="form-input" id="ai-key-input" type="password"
+            <input class="form-input" id="ai-key-input" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
               placeholder="Masukkan API key..."
               value="${db.settings.aiApiKey || ''}"
               style="flex:1; font-family:var(--font-mono); font-size:12px">
@@ -2844,7 +2983,7 @@ function renderLeadDetail(id) {
       ${lead.nextAction ? `<div style="background:var(--accent-dim); border:1px solid var(--accent); border-radius:var(--radius-sm); padding:10px 12px; font-size:13px; color:var(--accent)">⚡ Next Action: <strong>${lead.nextAction}</strong> ${lead.nextFollowup ? '· '+fmtDate(lead.nextFollowup) : ''}</div>` : ''}
     </div>
 
-    <div style="display:grid; grid-template-columns:1fr 320px; gap:16px; align-items:start">
+    <div class="detail-layout-grid" style="display:grid; grid-template-columns:1fr 320px; gap:16px; align-items:start">
       <!-- Left: Tabs -->
       <div>
         <div class="detail-tabs">
@@ -3217,7 +3356,7 @@ function renderVendorDetail(id) {
   `;
 
   document.getElementById('page-content').innerHTML = `
-    <div style="display:grid; grid-template-columns:1fr 300px; gap:16px; align-items:start">
+    <div class="detail-layout-grid" style="display:grid; grid-template-columns:1fr 300px; gap:16px; align-items:start">
       <div>
         <!-- Header Card -->
         <div class="card" style="margin-bottom:16px">
@@ -4086,7 +4225,7 @@ function renderProjectDetail(id) {
       </div>
     </div>
 
-    <div style="display:grid; grid-template-columns:1fr 300px; gap:16px; align-items:start">
+    <div class="detail-layout-grid" style="display:grid; grid-template-columns:1fr 300px; gap:16px; align-items:start">
       <div>
         <!-- Milestones -->
         <div class="card" style="margin-bottom:16px">
